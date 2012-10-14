@@ -33,14 +33,15 @@ class DoisPL(object):
         """
             Le a historia de entrada e guarda as operacoes numa lista
         """
-        modLeitura = input('Digite o modo de entrada de dados:\n1 - Arquivo\n2 - Digitado\n')
+        modLeitura = raw_input('Digite o modo de entrada de dados:\n/
+                                1 - Arquivo\n2 - Digitado\n')
 
         if modLeitura == 1:
 #            nomeArquivo = raw_input('Digite o nome do arquivo: ')
             nomeArquivo = 'Historia2pl.txt'
             if not os.path.exists(nomeArquivo):
                 print 'Erro no carregamento do arquivo de inicializacao'
-                sys.exit()
+                return 0
 
             arquivo = open(nomeArquivo,'r')
             for linha in arquivo:
