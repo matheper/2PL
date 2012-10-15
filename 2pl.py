@@ -27,14 +27,13 @@ class DoisPL(object):
                 operacao = [oper[1], oper[0], oper[3]] #quando eh read e write
             else:
                 operacao = [oper[1], oper[0], ''] #quando eh commit
-        self.operacoes.append(operacao)
+            self.operacoes.append(operacao)
 
     def lerEntrada(self):
         """
             Le a historia de entrada e guarda as operacoes numa lista
         """
-        modLeitura = raw_input('Digite o modo de entrada de dados:\n/
-                                1 - Arquivo\n2 - Digitado\n')
+        modLeitura = input('Digite o modo de entrada de dados:\n1 - Arquivo\n2 - Digitado\n')
 
         if modLeitura == 1:
 #            nomeArquivo = raw_input('Digite o nome do arquivo: ')
@@ -87,6 +86,8 @@ class DoisPL(object):
             if not self.tentaObterBloqueio(tran, oper, dado):
                 print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
                 return False
+            else:
+                self.historia.append([tran, oper, dado])
 
 
     def escreveHistoria(self):
