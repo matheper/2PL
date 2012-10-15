@@ -74,21 +74,37 @@ class DoisPL(object):
                 self.historia.append([transacao, 'lx', dado])
 
         return True
-
-    def executaHistoria(self):
+        
+    def executarOperacao(self, operacao):
         """
-            Parte principal: a partir das operacoes da historia de entrada, tenta montar a historia de saida
+            Tenta executar a operacao
         """
-        for operacao in self.operacoes:
-            tran = operacao[0] #transacao
-            oper = operacao[1] #operacao
-            dado = operacao[2] #dado
+        tran = operacao[0] #transacao
+        oper = operacao[1] #operacao
+        dado = operacao[2] #dado
+        if oper in ['r', 'w']:
             if not self.tentaObterBloqueio(tran, oper, dado):
                 print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
                 return False
             else:
                 self.historia.append([tran, oper, dado])
+        else:
+            self.historia.append([tran, oper, dado])
+        
+        return True
 
+    def pegaOperacoes(self):
+        """
+            Parte principal: a partir das operacoes da historia de entrada, tenta montar a historia de saida
+        """
+        for operacao in self.operacoes:
+            if not self.executarOperacao(operacao):
+                return False
+            #a cada operacao tenta executar tambem as que estao em delay (se houver)
+            for operacaoDelay in self.delay:
+                if not self.executarOperacao(operacaoDelay):
+                    return False
+        return True
 
     def escreveHistoria(self):
         """
@@ -96,13 +112,13 @@ class DoisPL(object):
         """
         for elemento in self.historia:
             if len(elemento[2]) > 0:
-                print '%s%s(%s)' %(elemento[0], elemento[1], elemento[2])
+                print '%s%s(%s)' %(elemento[1], elemento[0], elemento[2])
             else:
-                print '%s%s' %(elemento[0], elemento[1])
+                print '%s%s' %(elemento[1], elemento[0])
 
 
 doispl = DoisPL()
 doispl.lerEntrada()
-doispl.executaHistoria()
+doispl.pegaOperacoes()
 doispl.escreveHistoria()
 
