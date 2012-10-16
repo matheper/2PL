@@ -235,49 +235,87 @@ class DoisPL(object):
                     self.desbloqueios.append([tran, 'ux', block[2]])
                     self.bloqueios.remove(block)
         
-    def executarOperacao(self, operacao):
+    def executarOperacao(self, operacao, modo):
         """
-            Tenta executar a operacao
+            Tenta executar a operacao. Modo eh a origem da operacao (0 - operacoes, 1 - delay)
         """
         tran = operacao[0] #transacao
         oper = operacao[1] #operacao
         dado = operacao[2] #dado
 
-        if self.operacoesEmDelay(tran): # verifica se a transacao ja esta em delay
-            if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita            
+        if modo == 0: #operacao normal
+            if self.operacoesEmDelay(tran): # verifica se a transacao ja esta em delay
+                if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita            
+                    if not self.tentaObterBloqueio(tran, oper, dado): # tenta obter bloqueio sobre o dado
+                        print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
+                        return False
+                    else:
+                        self.historia.append([tran, oper, dado])
+                        self.operacoes.remove([tran, oper, dado])                
+                else: # se eh commit
+                    print 'Transacao %s executada com sucesso!' %(tran)
+                    self.desbloqueiaDadosTransacao(tran)
+                    self.historia.append([tran, oper, dado])
+                    self.operacoes.remove([tran, oper, dado])
+            else:
+                self.delay.append([tran, oper, dado])
+                self.operacoes.remove([tran, oper, dado])
+        else:
+            if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita
                 if not self.tentaObterBloqueio(tran, oper, dado): # tenta obter bloqueio sobre o dado
                     print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
                     return False
                 else:
                     self.historia.append([tran, oper, dado])
-                    self.operacoes.remove([tran, oper, dado])
-                
+                    self.delay.remove([tran, oper, dado])
             else: # se eh commit
+                print 'Transacao %s executada com sucesso!' %(tran)
                 self.desbloqueiaDadosTransacao(tran)
                 self.historia.append([tran, oper, dado])
-                self.operacoes.remove([tran, oper, dado])
-        else:
-            self.delay.append([tran, oper, dado])
-            self.operacoes.remove([tran, oper, dado])
+                self.delay.remove([tran, oper, dado])
         
         return True
+    
+    def tentaDesbloquear(self, dado, tran):
+        """
+        Desbloqueia o primeiro bloqueio encontrado em um determinado dado
+        """
+        for block in self.bloqueios:
+            if block[2] == dado and block[0] <> tran:
+                if block[1] == 'ls':
+                    self.historia.append([block[0], 'us', block[2]])
+                    self.desbloqueios.append([block[0], 'us', block[2]])
+                    self.bloqueios.remove(block)
+                else:
+                    self.historia.append([block[0], 'ux', block[2]])
+                    self.desbloqueios.append([block[0], 'ux', block[2]])
+                    self.bloqueios.remove(block)
+                return True
+        return False
 
     def pegaOperacoes(self):
         """
             Parte principal: a partir das operacoes da historia de entrada, tenta montar a historia de saida
         """
-        for operacao in self.operacoes:
-            if not self.executarOperacao(operacao):
+        while len(self.operacoes) > 0:
+            operacao = self.operacoes[0]
+            if not self.executarOperacao(operacao, 0):
                 return False
             #a cada operacao tenta executar tambem as que estao em delay (se houver)
             for operacaoDelay in self.delay:
-                if not self.executarOperacao(operacaoDelay):
+                if not self.executarOperacao(operacaoDelay, 1):
                     return False
         
+        totDelay = 0
         while len(self.delay) > 0:
+            totDelay = len(self.delay)
             for operacaoDelay in self.delay:
-                if not self.executarOperacao(operacaoDelay):
+                if not self.executarOperacao(operacaoDelay, 1):
                     return False
+            if totDelay == len(self.delay): # se for igual eh porque nenhuma transacao em delay conseguiu ser executada, entao tenta desbloquear algum dado
+                if not self.tentaDesbloquear(self.delay[0][2], self.delay[0][0]):
+                    #provavelmente ha deadlock, ver o que fazer
+                    print ''
         
         return True
 
@@ -285,6 +323,7 @@ class DoisPL(object):
         """
             Le a lista da historia de saida e escreve na tela
         """
+        print '\nHistoria de Execucao:\n'
         for elemento in self.historia:
             if len(elemento[2]) > 0:
                 print '%s%s(%s)' %(elemento[1], elemento[0], elemento[2])
