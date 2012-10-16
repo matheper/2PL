@@ -194,7 +194,7 @@ class DoisPL(object):
 
         return True
 
-    def tentaObterBloqueio(self, transacao, operacao, dado):
+    def tentaObterBloqueio(self, transacao, operacao, dado, modo):
         """
         Tenta bloquear um dado, verificando se este ja esta bloqueado por outra transacao. Se nao conseguir bloquear, a operacao fica em delay
         Se a operacao ja desbloqueou algum dado alguma outra vez, a historia eh invalida (regra do 2pl - transacao nao pode pedir mais de um lock)
@@ -205,7 +205,8 @@ class DoisPL(object):
 
         for blocks in self.bloqueios:
             if blocks[2] == dado and blocks[0] <> transacao: #dado bloqueado por outra transacao - operacao vai pra delay
-                self.delay.append([transacao, operacao, dado])
+                if modo == 0:
+                    self.delay.append([transacao, operacao, dado])
                 return 1
 
         #adiciona o seu bloqueio na lista de bloqueios e tambem na historia de execucao
@@ -245,7 +246,7 @@ class DoisPL(object):
         if modo == 0: #operacao normal
             if self.operacoesEmDelay(tran): # verifica se a transacao ja esta em delay
                 if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita
-                    ret = self.tentaObterBloqueio(tran, oper, dado) # tenta obter bloqueio sobre o dado
+                    ret = self.tentaObterBloqueio(tran, oper, dado, modo) # tenta obter bloqueio sobre o dado
                     if ret == 0:
                         print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
                         return False
@@ -264,19 +265,17 @@ class DoisPL(object):
                 self.operacoes.remove([tran, oper, dado])
         else:
             if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita
-                ret = self.tentaObterBloqueio(tran, oper, dado) # tenta obter bloqueio sobre o dado
+                ret = self.tentaObterBloqueio(tran, oper, dado, modo) # tenta obter bloqueio sobre o dado
                 if ret == 0:
                     print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
                     return False
                 else:
                     if ret == 2:
                         self.historia.append([tran, oper, dado])
-                    self.delay.remove([tran, oper, dado])
             else: # se eh commit
                 print 'Transacao %s executada com sucesso!' %(tran)
                 self.desbloqueiaDadosTransacao(tran)
                 self.historia.append([tran, oper, ''])
-                self.delay.remove([tran, oper, dado])
 
         return True
 
