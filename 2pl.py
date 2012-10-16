@@ -184,6 +184,16 @@ class DoisPL(object):
             entrada = input('Digite a historia de execucao:\n')
             self.transfereEntrada(entrada)
 
+    def operacoesEmDelay(self, tran):
+        """
+            Verifica se uma transacao ja tem operacoes em delay
+        """
+        for opDelay in self.delay:
+            if opDelay[0] == tran:
+                return False
+
+        return True
+
     def tentaObterBloqueio(self, transacao, operacao, dado):
         """
             Tenta bloquear um dado, verificando se este ja esta bloqueado por outra transacao. Se nao conseguir bloquear, a operacao fica em delay
@@ -209,6 +219,21 @@ class DoisPL(object):
                 self.historia.append([transacao, 'lx', dado])
 
         return True
+
+    def desbloqueiaDadosTransacao(self, tran):
+        """
+            Desbloqueia todos os locks que uma transacao possui
+        """
+        for block in self.bloqueios:
+            if block[0] == tran:
+                if block[1] == 'ls':
+                    self.historia.append([tran, 'us', block[2]])
+                    self.desbloqueios.append([tran, 'us', block[2]])
+                    self.bloqueios.remove(block)
+                else:
+                    self.historia.append([tran, 'ux', block[2]])
+                    self.desbloqueios.append([tran, 'ux', block[2]])
+                    self.bloqueios.remove(block)
         
     def executarOperacao(self, operacao):
         """
@@ -217,14 +242,23 @@ class DoisPL(object):
         tran = operacao[0] #transacao
         oper = operacao[1] #operacao
         dado = operacao[2] #dado
-        if oper in ['r', 'w']:
-            if not self.tentaObterBloqueio(tran, oper, dado):
-                print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
-                return False
-            else:
+
+        if self.operacoesEmDelay(tran): # verifica se a transacao ja esta em delay
+            if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita            
+                if not self.tentaObterBloqueio(tran, oper, dado): # tenta obter bloqueio sobre o dado
+                    print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
+                    return False
+                else:
+                    self.historia.append([tran, oper, dado])
+                    self.operacoes.remove([tran, oper, dado])
+                
+            else: # se eh commit
+                self.desbloqueiaDadosTransacao(tran)
                 self.historia.append([tran, oper, dado])
+                self.operacoes.remove([tran, oper, dado])
         else:
-            self.historia.append([tran, oper, dado])
+            self.delay.append([tran, oper, dado])
+            self.operacoes.remove([tran, oper, dado])
         
         return True
 
@@ -239,6 +273,12 @@ class DoisPL(object):
             for operacaoDelay in self.delay:
                 if not self.executarOperacao(operacaoDelay):
                     return False
+        
+        while len(self.delay) > 0:
+            for operacaoDelay in self.delay:
+                if not self.executarOperacao(operacaoDelay):
+                    return False
+        
         return True
 
     def escreveHistoria(self):
