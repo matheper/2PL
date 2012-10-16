@@ -9,6 +9,141 @@
 import sys
 import os.path
 
+token = ''
+pos = 0
+arquivo = None
+linhaArquivo = ''
+
+READ = 1
+WRITE = 2
+COMMIT = 3
+ABORT = 4
+ID = 5
+OPEN = 6
+CLOSE = 7
+
+
+
+def reconhecedor(linha):
+    global pos
+    global token
+    global pos
+    global READ
+    global WRITE
+    global COMMIT
+    global ABORT
+    global ID
+    global OPEN
+    global CLOSE
+
+    estado = 0
+    posAnterior = 0
+    tokenCorrente = ''
+    while True:
+        if estado == 0:
+            if linha[pos] == ' ':
+                pass
+            elif linha[pos] == 'r':
+                estado = READ
+            elif linha[pos] == 'w':
+                estado = WRITE
+            elif linha[pos] == 'c':
+                estado = COMMIT
+            elif linha[pos] == 'a':
+                estado = ABORT
+            elif linha[pos] >= 'a' and linha[pos] <= 'z':
+                estado = ID
+            elif linha[pos] == '(':
+                estado = OPEN
+            elif linha[pos] == ')':
+                estado = CLOSE
+            else:
+                return (0,0)
+            if linha[pos] != ' ':
+                token += linha[pos]
+            pos += 1
+        elif estado == OPEN or estado == CLOSE:
+            tokenCorrente = token
+            token = ''
+            return (estado, tokenCorrente)
+        elif estado != ID:
+            if linha[pos] >= '0' and linha[pos] <= '9':
+                token += linha[pos]
+                pos += 1
+            else:
+                tokenCorrente = token
+                token = ''
+                return (estado, tokenCorrente)
+        else:
+            if linha[pos] >= 'a' and linha[pos] <= 'z':
+                token += linha[pos]
+                pos += 1
+            else:
+                tokenCorrente = token
+                token = ''
+                return (estado,tokenCorrente)
+
+def analisadorLexico():
+    global arquivo
+    global linhaArquivo
+    global pos
+    if pos >= len(linhaArquivo) or linhaArquivo[pos] == '\n':
+        linhaArquivo = arquivo.readline()
+        pos = 0
+    if pos < len(linhaArquivo):
+        codToken = reconhecedor(linhaArquivo)
+        print codToken
+        return codToken
+    return 0
+
+def analisadorSintatico():
+    global pos
+    global token
+    global pos
+    global READ
+    global WRITE
+    global COMMIT
+    global ABORT
+    global ID
+    global OPEN
+    global CLOSE
+
+    codToken = analisadorLexico()
+    if not codToken:
+        return True
+    if codToken[0] == READ or codToken[0] == WRITE:
+        codToken = analisadorLexico()
+        if codToken[0] == OPEN:
+            codToken = analisadorLexico()
+            if codToken[0] == ID:
+                codToken = analisadorLexico()
+                if codToken[0] == CLOSE:
+                    analisadorSintatico()
+                else:
+                    print "Esperava fecha parentes."
+                    sys.exit(0)
+            else:
+                print "Espera dado para operacao."
+                sys.exit(0)
+        else:
+            print "Esperava abre parenteses."
+            sys.exit(0)
+    elif codToken[0] == COMMIT or codToken[0] == ABORT:
+        codToken = analisadorLexico()
+        if codToken[0] == OPEN:
+            codToken = analisadorLexico()
+            if codToken[0] == CLOSE:
+                analisadorSintatico()
+            else:
+                print "Espera fecha parenteses."
+                sys.exit(0)
+        else:
+            print "Esperava abre parenteses."
+            sys.exit(0)
+    else:
+        print "Esperava operacao 'Read', 'Write', 'Commit' ou 'Abort'."
+        sys.exit(0)
+
 class DoisPL(object):
 
     def __init__(self):
@@ -117,8 +252,24 @@ class DoisPL(object):
                 print '%s%s' %(elemento[1], elemento[0])
 
 
-doispl = DoisPL()
-doispl.lerEntrada()
-doispl.pegaOperacoes()
-doispl.escreveHistoria()
+#doispl = DoisPL()
+#doispl.lerEntrada()
+#doispl.pegaOperacoes()
+#doispl.escreveHistoria()
 
+def main():
+#   nomeArquivo = raw_input('Digite o nome do arquivo: ')
+    nomeArquivo = 'Historia2pl.txt'
+    if not os.path.exists(nomeArquivo):
+        print 'Erro no carregamento do arquivo de inicializacao'
+        return 0
+
+    global arquivo
+    arquivo = open(nomeArquivo,'r')
+    analise = analisadorSintatico()
+    if analise:
+        print 'Ok.'
+    return 0
+
+if __name__ == "__main__":
+    main()

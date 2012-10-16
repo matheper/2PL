@@ -1,1 +1,2 @@
-r1(x) w1(x) r2(z) r1(y) c1 c2
+r1(x) w1(x) r2(z) r1(y) c1() c2()
+r1(x) w1(x) w1(z) r1(y) c1() c2()
