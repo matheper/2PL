@@ -147,31 +147,31 @@ def analisadorSintatico():
 class DoisPL(object):
 
     def __init__(self):
-        self.operacoes    = [] #lista de listas com [Transacao, Operacao, Dado] - operacoes da historia lida
-        self.bloqueios    = [] #lista de listas com [Transacao, Tipo de Bloqueio, Dado] - informa os bloqueios atuais sobre os dados
+        self.operacoes = [] #lista de listas com [Transacao, Operacao, Dado] - operacoes da historia lida
+        self.bloqueios = [] #lista de listas com [Transacao, Tipo de Bloqueio, Dado] - informa os bloqueios atuais sobre os dados
         self.desbloqueios = [] #lista de listas com [Transacao, Tipo de Desbloqueio, Dado] - informa os bloqueios que ja foram feitos
-        self.historia     = [] #lista de listas com [Transacao, Operacao, Dado] - operacoes da historia de saida
-        self.delay        = [] #lista de listas com [Transacao, Operacao, Dado] - operacoes que estao em delay
+        self.historia = [] #lista de listas com [Transacao, Operacao, Dado] - operacoes da historia de saida
+        self.delay = [] #lista de listas com [Transacao, Operacao, Dado] - operacoes que estao em delay
 
     def transfereEntrada(self, historia):
         """
-            Transfere o conteudo da historia pra uma lista de operacoes
+        Transfere o conteudo da historia pra uma lista de operacoes
         """
         for oper in historia.split(' '):
             if len(oper) > 3:
                 operacao = [oper[1], oper[0], oper[3]] #quando eh read e write
             else:
-                operacao = [oper[1], oper[0], ''] #quando eh commit
+                operacao = [oper[1], oper[0], ' '] #quando eh commit
             self.operacoes.append(operacao)
 
     def lerEntrada(self):
         """
-            Le a historia de entrada e guarda as operacoes numa lista
+        Le a historia de entrada e guarda as operacoes numa lista
         """
         modLeitura = input('Digite o modo de entrada de dados:\n1 - Arquivo\n2 - Digitado\n')
 
         if modLeitura == 1:
-#            nomeArquivo = raw_input('Digite o nome do arquivo: ')
+            # nomeArquivo = raw_input('Digite o nome do arquivo: ')
             nomeArquivo = 'Historia2pl.txt'
             if not os.path.exists(nomeArquivo):
                 print 'Erro no carregamento do arquivo de inicializacao'
@@ -186,7 +186,7 @@ class DoisPL(object):
 
     def operacoesEmDelay(self, tran):
         """
-            Verifica se uma transacao ja tem operacoes em delay
+        Verifica se uma transacao ja tem operacoes em delay
         """
         for opDelay in self.delay:
             if opDelay[0] == tran:
@@ -196,35 +196,34 @@ class DoisPL(object):
 
     def tentaObterBloqueio(self, transacao, operacao, dado):
         """
-            Tenta bloquear um dado, verificando se este ja esta bloqueado por outra transacao. Se nao conseguir bloquear, a operacao fica em delay
-            Se a operacao ja desbloqueou algum dado alguma outra vez, a historia eh invalida (regra do 2pl - transacao nao pode pedir mais de um lock)
+        Tenta bloquear um dado, verificando se este ja esta bloqueado por outra transacao. Se nao conseguir bloquear, a operacao fica em delay
+        Se a operacao ja desbloqueou algum dado alguma outra vez, a historia eh invalida (regra do 2pl - transacao nao pode pedir mais de um lock)
         """
         for blocks in self.desbloqueios:
             if blocks[0] == transacao: #transacao ja pediu outro lock anteriormente - invalido
-                return False
+                return 0
 
-        canBlo = True
         for blocks in self.bloqueios:
             if blocks[2] == dado and blocks[0] <> transacao: #dado bloqueado por outra transacao - operacao vai pra delay
                 self.delay.append([transacao, operacao, dado])
-                canBlo = False
-                break
+                return 1
 
-        if canBlo: #adiciona o seu bloqueio na lista de bloqueios e tambem na historia de execucao
-            if operacao == 'r':
-                self.bloqueios.append([transacao, 'ls', dado])
-                self.historia.append([transacao, 'ls', dado])
-            else:
-                self.bloqueios.append([transacao, 'lx', dado])
-                self.historia.append([transacao, 'lx', dado])
+        #adiciona o seu bloqueio na lista de bloqueios e tambem na historia de execucao
+        if operacao == 'r':
+            self.bloqueios.append([transacao, 'ls', dado])
+            self.historia.append([transacao, 'ls', dado])
+        else:
+            self.bloqueios.append([transacao, 'lx', dado])
+            self.historia.append([transacao, 'lx', dado])
 
-        return True
+        return 2
 
     def desbloqueiaDadosTransacao(self, tran):
         """
-            Desbloqueia todos os locks que uma transacao possui
+        Desbloqueia todos os locks que uma transacao possui
         """
-        for block in self.bloqueios:
+        while len(self.bloqueios) > 0:
+            block = self.bloqueios[0]
             if block[0] == tran:
                 if block[1] == 'ls':
                     self.historia.append([tran, 'us', block[2]])
@@ -234,10 +233,10 @@ class DoisPL(object):
                     self.historia.append([tran, 'ux', block[2]])
                     self.desbloqueios.append([tran, 'ux', block[2]])
                     self.bloqueios.remove(block)
-        
+
     def executarOperacao(self, operacao, modo):
         """
-            Tenta executar a operacao. Modo eh a origem da operacao (0 - operacoes, 1 - delay)
+        Tenta executar a operacao. Modo eh a origem da operacao (0 - operacoes, 1 - delay)
         """
         tran = operacao[0] #transacao
         oper = operacao[1] #operacao
@@ -245,37 +244,42 @@ class DoisPL(object):
 
         if modo == 0: #operacao normal
             if self.operacoesEmDelay(tran): # verifica se a transacao ja esta em delay
-                if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita            
-                    if not self.tentaObterBloqueio(tran, oper, dado): # tenta obter bloqueio sobre o dado
+                if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita
+                    ret = self.tentaObterBloqueio(tran, oper, dado) # tenta obter bloqueio sobre o dado
+                    if ret == 0:
                         print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
                         return False
                     else:
-                        self.historia.append([tran, oper, dado])
-                        self.operacoes.remove([tran, oper, dado])                
+                        if ret == 2:
+                            self.historia.append([tran, oper, dado])
+                        self.operacoes.remove([tran, oper, dado])
+
                 else: # se eh commit
                     print 'Transacao %s executada com sucesso!' %(tran)
                     self.desbloqueiaDadosTransacao(tran)
-                    self.historia.append([tran, oper, dado])
+                    self.historia.append([tran, oper, ''])
                     self.operacoes.remove([tran, oper, dado])
             else:
                 self.delay.append([tran, oper, dado])
                 self.operacoes.remove([tran, oper, dado])
         else:
             if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita
-                if not self.tentaObterBloqueio(tran, oper, dado): # tenta obter bloqueio sobre o dado
+                ret = self.tentaObterBloqueio(tran, oper, dado) # tenta obter bloqueio sobre o dado
+                if ret == 0:
                     print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
                     return False
                 else:
-                    self.historia.append([tran, oper, dado])
+                    if ret == 2:
+                        self.historia.append([tran, oper, dado])
                     self.delay.remove([tran, oper, dado])
             else: # se eh commit
                 print 'Transacao %s executada com sucesso!' %(tran)
                 self.desbloqueiaDadosTransacao(tran)
-                self.historia.append([tran, oper, dado])
+                self.historia.append([tran, oper, ''])
                 self.delay.remove([tran, oper, dado])
-        
+
         return True
-    
+
     def tentaDesbloquear(self, dado, tran):
         """
         Desbloqueia o primeiro bloqueio encontrado em um determinado dado
@@ -295,18 +299,22 @@ class DoisPL(object):
 
     def pegaOperacoes(self):
         """
-            Parte principal: a partir das operacoes da historia de entrada, tenta montar a historia de saida
+        Parte principal: a partir das operacoes da historia de entrada, tenta montar a historia de saida
         """
+        totDelay = 0
         while len(self.operacoes) > 0:
             operacao = self.operacoes[0]
             if not self.executarOperacao(operacao, 0):
                 return False
             #a cada operacao tenta executar tambem as que estao em delay (se houver)
+
             for operacaoDelay in self.delay:
+                totDelay = len(self.delay)
                 if not self.executarOperacao(operacaoDelay, 1):
                     return False
-        
-        totDelay = 0
+                if totDelay == len(self.delay):
+                    break
+
         while len(self.delay) > 0:
             totDelay = len(self.delay)
             for operacaoDelay in self.delay:
@@ -316,12 +324,12 @@ class DoisPL(object):
                 if not self.tentaDesbloquear(self.delay[0][2], self.delay[0][0]):
                     #provavelmente ha deadlock, ver o que fazer
                     print ''
-        
+
         return True
 
     def escreveHistoria(self):
         """
-            Le a lista da historia de saida e escreve na tela
+        Le a lista da historia de saida e escreve na tela
         """
         print '\nHistoria de Execucao:\n'
         for elemento in self.historia:
