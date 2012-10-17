@@ -204,6 +204,14 @@ class DoisPL(object):
                 return 0
 
         for blocks in self.bloqueios:
+            if operacao == 'r':
+                if blocks == [transacao, 'ls', dado]: #se a transacao ja tem o lock, ok e nao precisa adicionar nada
+                    return 2
+            else:
+                if blocks == [transacao, 'lx', dado]: #se a transacao ja tem o lock, ok e nao precisa adicionar nada
+                    return 2
+
+        for blocks in self.bloqueios:
             if blocks[2] == dado and blocks[0] <> transacao: #dado bloqueado por outra transacao - operacao vai pra delay
                 if modo == 0:
                     self.delay.append([transacao, operacao, dado])
@@ -272,10 +280,12 @@ class DoisPL(object):
                 else:
                     if ret == 2:
                         self.historia.append([tran, oper, dado])
+                        self.delay.remove([tran, oper, dado])
             else: # se eh commit
                 print 'Transacao %s executada com sucesso!' %(tran)
                 self.desbloqueiaDadosTransacao(tran)
                 self.historia.append([tran, oper, ''])
+                self.delay.remove([tran, oper, dado])
 
         return True
 
