@@ -1,9 +1,9 @@
 #-------------------------------------------------------------------------------
-# Nome:        2PL
-# Autores:     Luiz Eduardo
-#              Matheus Pereira
+# Nome: 2PL
+# Autores: Luiz Eduardo
+# Matheus Pereira
 #
-# Criado:      13/10/2012
+# Criado: 13/10/2012
 #-------------------------------------------------------------------------------
 
 import sys
@@ -21,8 +21,6 @@ ABORT = 4
 ID = 5
 OPEN = 6
 CLOSE = 7
-
-
 
 def reconhecedor(linha):
     global pos
@@ -153,36 +151,23 @@ class DoisPL(object):
         self.historia = [] #lista de listas com [Transacao, Operacao, Dado] - operacoes da historia de saida
         self.delay = [] #lista de listas com [Transacao, Operacao, Dado] - operacoes que estao em delay
 
-    def transfereEntrada(self, historia):
-        """
-        Transfere o conteudo da historia pra uma lista de operacoes
-        """
-        for oper in historia.split(' '):
-            if len(oper) > 3:
-                operacao = [oper[1], oper[0], oper[3]] #quando eh read e write
-            else:
-                operacao = [oper[1], oper[0], ' '] #quando eh commit
-            self.operacoes.append(operacao)
-
     def lerEntrada(self):
         """
         Le a historia de entrada e guarda as operacoes numa lista
         """
-        modLeitura = input('Digite o modo de entrada de dados:\n1 - Arquivo\n2 - Digitado\n')
+        nomeArquivo = 'Historia2pl.txt'
+        if not os.path.exists(nomeArquivo):
+            print 'Erro no carregamento do arquivo de inicializacao'
+            return 0
 
-        if modLeitura == 1:
-            # nomeArquivo = raw_input('Digite o nome do arquivo: ')
-            nomeArquivo = 'Historia2pl.txt'
-            if not os.path.exists(nomeArquivo):
-                print 'Erro no carregamento do arquivo de inicializacao'
-                return 0
-
-            arquivo = open(nomeArquivo,'r')
-            for linha in arquivo:
-                self.transfereEntrada(linha)
-        else:
-            entrada = input('Digite a historia de execucao:\n')
-            self.transfereEntrada(entrada)
+        arquivo = open(nomeArquivo,'r')
+        for linha in arquivo:
+            for oper in linha.split(' '):
+                if len(oper) > 3:
+                    operacao = [oper[1], oper[0], oper[3]] #quando eh read e write
+                else:
+                    operacao = [oper[1], oper[0], ' '] #quando eh commit
+                self.operacoes.append(operacao)
 
     def operacoesEmDelay(self, tran):
         """
@@ -204,18 +189,19 @@ class DoisPL(object):
                 return 0
 
         for blocks in self.bloqueios:
+            if blocks[2] == dado and blocks[0] <> transacao: #dado bloqueado por outra transacao
+                if blocks[1] == 'w' or operacao == 'w': # soh vai pra delay se tiver block de escrita (leitura e leitura nao)
+                    if modo == 0:
+                        self.delay.append([transacao, operacao, dado])
+                    return 1
+
+        for blocks in self.bloqueios:
             if operacao == 'r':
                 if blocks == [transacao, 'ls', dado]: #se a transacao ja tem o lock, ok e nao precisa adicionar nada
                     return 2
             else:
                 if blocks == [transacao, 'lx', dado]: #se a transacao ja tem o lock, ok e nao precisa adicionar nada
                     return 2
-
-        for blocks in self.bloqueios:
-            if blocks[2] == dado and blocks[0] <> transacao: #dado bloqueado por outra transacao - operacao vai pra delay
-                if modo == 0:
-                    self.delay.append([transacao, operacao, dado])
-                return 1
 
         #adiciona o seu bloqueio na lista de bloqueios e tambem na historia de execucao
         if operacao == 'r':
@@ -231,8 +217,9 @@ class DoisPL(object):
         """
         Desbloqueia todos os locks que uma transacao possui
         """
-        while len(self.bloqueios) > 0:
-            block = self.bloqueios[0]
+        ind = 0
+        while ind < len(self.bloqueios):
+            block = self.bloqueios[ind]
             if block[0] == tran:
                 if block[1] == 'ls':
                     self.historia.append([tran, 'us', block[2]])
@@ -242,16 +229,21 @@ class DoisPL(object):
                     self.historia.append([tran, 'ux', block[2]])
                     self.desbloqueios.append([tran, 'ux', block[2]])
                     self.bloqueios.remove(block)
+            else:
+                ind = ind + 1
 
     def abortarOperacao(self, tran):
+        """
+        Aborta uma transacao, limpando seu historico de operacoes e bloqueios e jogando suas operacoes de volta no delay
+        """
         listaOperacoes = []
-        listaOperacoes[:] = filter(lambda x: x[0]==tran, self.historia)  # Transfere operacoes da
-        self.historia[:] = filter(lambda x: x[0]!=tran, self.historia)   # historia para listaOperacoes,
-        listaOperacoes[:] += filter(lambda x: x[0]==tran, self.delay)    # o mesmo com o delay e com as operacoes.
-        self.delay[:] = filter(lambda x: x[0]!=tran, self.delay)         # Sempre nessa ordem para preservar a integridada
+        listaOperacoes[:] = filter(lambda x: x[0]==tran, self.historia) # Transfere operacoes da
+        self.historia[:] = filter(lambda x: x[0]!=tran, self.historia) # historia para listaOperacoes,
+        listaOperacoes[:] += filter(lambda x: x[0]==tran, self.delay) # o mesmo com o delay e com as operacoes.
+        self.delay[:] = filter(lambda x: x[0]!=tran, self.delay) # Sempre nessa ordem para preservar a integridada
         listaOperacoes[:] += filter(lambda x: x[0]==tran, self.operacoes)# da transacao.
         self.operacoes[:] = filter(lambda x: x[0]!=tran, self.operacoes) #
-        listaOperacoes =  [i for i in listaOperacoes if (i[1]!= 'ux' and i[1]!='us' and i[1]!= 'ls' and i[1]!='ls')]
+        listaOperacoes = [i for i in listaOperacoes if (i[1]!= 'ux' and i[1]!='us' and i[1]!= 'ls' and i[1]!='ls')]
         self.delay += listaOperacoes
         self.bloqueios[:] = filter(lambda x: x[0]!=tran, self.bloqueios)
         self.desbloqueios[:] = filter(lambda x: x[0]!=tran, self.desbloqueios)
@@ -270,7 +262,8 @@ class DoisPL(object):
                     ret = self.tentaObterBloqueio(tran, oper, dado, modo) # tenta obter bloqueio sobre o dado
                     if ret == 0:
                         print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
-                        return False
+                        print 'Transacao %s abortada!' %(tran)
+                        self.abortarOperacao(tran)
                     else:
                         if ret == 2:
                             self.historia.append([tran, oper, dado])
@@ -289,7 +282,8 @@ class DoisPL(object):
                 ret = self.tentaObterBloqueio(tran, oper, dado, modo) # tenta obter bloqueio sobre o dado
                 if ret == 0:
                     print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
-                    return False
+                    print 'Transacao %s abortada!' %(tran)
+                    self.abortarOperacao(tran)
                 else:
                     if ret == 2:
                         self.historia.append([tran, oper, dado])
@@ -300,71 +294,59 @@ class DoisPL(object):
                 self.historia.append([tran, oper, ''])
                 self.delay.remove([tran, oper, dado])
 
-        return True
-
-    def tentaDesbloquear(self, dado, tran):
-        """
-        Desbloqueia o primeiro bloqueio encontrado em um determinado dado
-        """
-        for block in self.bloqueios:
-            if block[2] == dado and block[0] <> tran:
-                if block[1] == 'ls':
-                    self.historia.append([block[0], 'us', block[2]])
-                    self.desbloqueios.append([block[0], 'us', block[2]])
-                    self.bloqueios.remove(block)
-                else:
-                    self.historia.append([block[0], 'ux', block[2]])
-                    self.desbloqueios.append([block[0], 'ux', block[2]])
-                    self.bloqueios.remove(block)
-                return True
-        return False
-
     def verificaDelay(self, oper, ind):
+        """
+        Verifica se uma operacao em delay pode ser executada
+        """
         tran = oper[0]
-        for i in range(0, ind+1):
+        for i in range(0, ind):
             operDelay = self.delay[i]
-            if operDelay[0] == tran:
-                return False
+            if oper <> operDelay:
+                if operDelay[0] == tran:
+                    return False
 
         return True
+
+    def pegaOperacoesDelay(self, modo):
+        """
+        Pega as operacoes que estao em delay
+        """
+        ind = 0
+        totDelay = len(self.delay)
+        totDelInd = 0
+        for i in range(0, totDelay):
+            totDelInd = len(self.delay)
+            operacaoDelay = self.delay[ind]
+            if self.verificaDelay(operacaoDelay, ind):
+                self.executarOperacao(operacaoDelay, 1)
+            if totDelInd == len(self.delay):
+                ind = ind + 1
+
+        if modo == 1:
+            # se for igual eh porque nenhuma transacao em delay conseguiu ser executada, entao tem que abortar
+            if totDelay == len(self.delay):
+                print 'Transacao %s abortada por deadlock!' %(self.delay[0][0])
+                self.abortarOperacao(self.delay[0][0])
 
     def pegaOperacoes(self):
         """
         Parte principal: a partir das operacoes da historia de entrada, tenta montar a historia de saida
         """
-        totDelay = 0
         while len(self.operacoes) > 0:
             operacao = self.operacoes[0]
-            if not self.executarOperacao(operacao, 0):
-                return False
-            #a cada operacao tenta executar tambem as que estao em delay (se houver)
+            self.executarOperacao(operacao, 0)
 
-            for operacaoDelay in self.delay:
-                totDelay = len(self.delay)
-                if not self.executarOperacao(operacaoDelay, 1):
-                    return False
-                if totDelay == len(self.delay):
-                    break
+            #a cada operacao tenta executar tambem as que estao em delay (se houver)
+            self.pegaOperacoesDelay(0)
 
         while len(self.delay) > 0:
-            totDelay = len(self.delay)
-            ind = 0
-            for operacaoDelay in self.delay:
-                if self.verificaDelay(operacaoDelay, ind):
-                    if not self.executarOperacao(operacaoDelay, 1):
-                        return False
-                if totDelay == len(self.delay): # se for igual eh porque nenhuma transacao em delay conseguiu ser executada, entao tenta desbloquear algum dado
-                    if not self.tentaDesbloquear(self.delay[0][2], self.delay[0][0]):
-                        pass        
-                ind = ind + 1
-
-        return True
+            self.pegaOperacoesDelay(1)
 
     def escreveHistoria(self):
         """
         Le a lista da historia de saida e escreve na tela
         """
-        print '\nHistoria de Execucao:\n'
+        print '\nHistoria de Execucao:'
         for elemento in self.historia:
             if len(elemento[2]) > 0:
                 print '%s%s(%s)' %(elemento[1], elemento[0], elemento[2])
@@ -372,26 +354,20 @@ class DoisPL(object):
                 print '%s%s' %(elemento[1], elemento[0])
 
 
-
 def main():
+    nomeArquivo = 'Historia2pl.txt'
+    if not os.path.exists(nomeArquivo):
+        print 'Erro no carregamento do arquivo de inicializacao'
+        return 0
 
-    import ipdb;ipdb.set_trace()
+    global arquivo
+    arquivo = open(nomeArquivo,'r')
+    analise = analisadorSintatico()
+    print ''
     doispl = DoisPL()
     doispl.lerEntrada()
     doispl.pegaOperacoes()
     doispl.escreveHistoria()
-#   nomeArquivo = raw_input('Digite o nome do arquivo: ')
-#    nomeArquivo = 'Historia2pl.txt'
-#    if not os.path.exists(nomeArquivo):
-#        print 'Erro no carregamento do arquivo de inicializacao'
-#        return 0
-#
-#    global arquivo
-#    arquivo = open(nomeArquivo,'r')
-#    analise = analisadorSintatico()
-#    if analise:
-#        print 'Ok.'
-    return 0
 
 if __name__ == "__main__":
     main()
