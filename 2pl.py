@@ -243,6 +243,19 @@ class DoisPL(object):
                     self.desbloqueios.append([tran, 'ux', block[2]])
                     self.bloqueios.remove(block)
 
+    def abortarOperacao(self, operacao):
+        tran = operacao[0] #pega transacao
+        listaOperacoes = []
+        listaOperacoes[:] = filter(lambda x: x[0]==tran, self.historia)  # Transfere operacoes da
+        self.historia[:] = filter(lambda x: x[0]!=tran, self.historia)   # historia para listaOperacoes,
+        listaOperacoes[:] += filter(lambda x: x[0]==tran, self.delay)    # o mesmo com o delay e com as operacoes.
+        self.delay[:] = filter(lambda x: x[0]!=tran, self.delay)         # Sempre nessa ordem para preservar a integridada
+        listaOperacoes[:] += filter(lambda x: x[0]==tran, self.operacoes)# da transacao.
+        self.operacoes[:] = filter(lambda x: x[0]!=tran, self.operacoes) #
+        self.delay += listaOperacoes
+        self.bloqueio[:] = filter(lambda x: x[0]!=tran, self.bloqueio)
+        self.desbloqueio[:] = filter(lambda x: x[0]!=tran, self.desbloqueio)
+
     def executarOperacao(self, operacao, modo):
         """
         Tenta executar a operacao. Modo eh a origem da operacao (0 - operacoes, 1 - delay)
@@ -306,6 +319,15 @@ class DoisPL(object):
                 return True
         return False
 
+    def verificaDelay(self, oper, ind):
+        tran = oper[0]
+        for i in range(0, ind+1):
+            operDelay = self.delay[i]
+            if operDelay[0] == tran:
+                return false
+
+        return true
+
     def pegaOperacoes(self):
         """
         Parte principal: a partir das operacoes da historia de entrada, tenta montar a historia de saida
@@ -326,13 +348,15 @@ class DoisPL(object):
 
         while len(self.delay) > 0:
             totDelay = len(self.delay)
+            ind = 0
             for operacaoDelay in self.delay:
-                if not self.executarOperacao(operacaoDelay, 1):
-                    return False
-            if totDelay == len(self.delay): # se for igual eh porque nenhuma transacao em delay conseguiu ser executada, entao tenta desbloquear algum dado
-                if not self.tentaDesbloquear(self.delay[0][2], self.delay[0][0]):
-                    #provavelmente ha deadlock, ver o que fazer
-                    print ''
+                if self.verificaDelay(operacaoDelay, ind):
+                    if not self.executarOperacao(operacaoDelay, 1):
+                        return False
+                if totDelay == len(self.delay): # se for igual eh porque nenhuma transacao em delay conseguiu ser executada, entao tenta desbloquear algum dado
+                    if not self.tentaDesbloquear(self.delay[0][2], self.delay[0][0]):
+                        pass        
+                ind = ind + 1
 
         return True
 
@@ -348,23 +372,25 @@ class DoisPL(object):
                 print '%s%s' %(elemento[1], elemento[0])
 
 
-#doispl = DoisPL()
-#doispl.lerEntrada()
-#doispl.pegaOperacoes()
-#doispl.escreveHistoria()
 
 def main():
-#   nomeArquivo = raw_input('Digite o nome do arquivo: ')
-    nomeArquivo = 'Historia2pl.txt'
-    if not os.path.exists(nomeArquivo):
-        print 'Erro no carregamento do arquivo de inicializacao'
-        return 0
 
-    global arquivo
-    arquivo = open(nomeArquivo,'r')
-    analise = analisadorSintatico()
-    if analise:
-        print 'Ok.'
+#    import ipdb;ipdb.set_trace()
+    doispl = DoisPL()
+    doispl.lerEntrada()
+    doispl.pegaOperacoes()
+    doispl.escreveHistoria()
+#   nomeArquivo = raw_input('Digite o nome do arquivo: ')
+#    nomeArquivo = 'Historia2pl.txt'
+#    if not os.path.exists(nomeArquivo):
+#        print 'Erro no carregamento do arquivo de inicializacao'
+#        return 0
+#
+#    global arquivo
+#    arquivo = open(nomeArquivo,'r')
+#    analise = analisadorSintatico()
+#    if analise:
+#        print 'Ok.'
     return 0
 
 if __name__ == "__main__":
