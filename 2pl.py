@@ -243,8 +243,7 @@ class DoisPL(object):
                     self.desbloqueios.append([tran, 'ux', block[2]])
                     self.bloqueios.remove(block)
 
-    def abortarOperacao(self, operacao):
-        tran = operacao[0] #pega transacao
+    def abortarOperacao(self, tran):
         listaOperacoes = []
         listaOperacoes[:] = filter(lambda x: x[0]==tran, self.historia)  # Transfere operacoes da
         self.historia[:] = filter(lambda x: x[0]!=tran, self.historia)   # historia para listaOperacoes,
@@ -252,9 +251,10 @@ class DoisPL(object):
         self.delay[:] = filter(lambda x: x[0]!=tran, self.delay)         # Sempre nessa ordem para preservar a integridada
         listaOperacoes[:] += filter(lambda x: x[0]==tran, self.operacoes)# da transacao.
         self.operacoes[:] = filter(lambda x: x[0]!=tran, self.operacoes) #
+        listaOperacoes =  [i for i in listaOperacoes if (i[1]!= 'ux' and i[1]!='us' and i[1]!= 'ls' and i[1]!='ls')]
         self.delay += listaOperacoes
-        self.bloqueio[:] = filter(lambda x: x[0]!=tran, self.bloqueio)
-        self.desbloqueio[:] = filter(lambda x: x[0]!=tran, self.desbloqueio)
+        self.bloqueios[:] = filter(lambda x: x[0]!=tran, self.bloqueios)
+        self.desbloqueios[:] = filter(lambda x: x[0]!=tran, self.desbloqueios)
 
     def executarOperacao(self, operacao, modo):
         """
@@ -324,9 +324,9 @@ class DoisPL(object):
         for i in range(0, ind+1):
             operDelay = self.delay[i]
             if operDelay[0] == tran:
-                return false
+                return False
 
-        return true
+        return True
 
     def pegaOperacoes(self):
         """
@@ -375,7 +375,7 @@ class DoisPL(object):
 
 def main():
 
-#    import ipdb;ipdb.set_trace()
+    import ipdb;ipdb.set_trace()
     doispl = DoisPL()
     doispl.lerEntrada()
     doispl.pegaOperacoes()
