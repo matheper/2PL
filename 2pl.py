@@ -168,6 +168,7 @@ class DoisPL(object):
                 else:
                     operacao = [oper[1], oper[0], ' '] #quando eh commit
                 self.operacoes.append(operacao)
+            break
 
     def operacoesEmDelay(self, tran):
         """
@@ -190,7 +191,7 @@ class DoisPL(object):
 
         for blocks in self.bloqueios:
             if blocks[2] == dado and blocks[0] <> transacao: #dado bloqueado por outra transacao
-                if blocks[1] == 'w' or operacao == 'w': # soh vai pra delay se tiver block de escrita (leitura e leitura nao)
+                if blocks[1] == 'lx' or operacao == 'w': # soh vai pra delay se tiver block de escrita (leitura e leitura nao)
                     if modo == 0:
                         self.delay.append([transacao, operacao, dado])
                     return 1
@@ -243,7 +244,7 @@ class DoisPL(object):
         self.delay[:] = filter(lambda x: x[0]!=tran, self.delay) # Sempre nessa ordem para preservar a integridada
         listaOperacoes[:] += filter(lambda x: x[0]==tran, self.operacoes)# da transacao.
         self.operacoes[:] = filter(lambda x: x[0]!=tran, self.operacoes) #
-        listaOperacoes = [i for i in listaOperacoes if (i[1]!= 'ux' and i[1]!='us' and i[1]!= 'ls' and i[1]!='ls')]
+        listaOperacoes = [i for i in listaOperacoes if (i[1]!= 'ux' and i[1]!='us' and i[1]!= 'ls' and i[1]!='lx')]
         self.delay += listaOperacoes
         self.bloqueios[:] = filter(lambda x: x[0]!=tran, self.bloqueios)
         self.desbloqueios[:] = filter(lambda x: x[0]!=tran, self.desbloqueios)
