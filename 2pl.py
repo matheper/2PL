@@ -8,7 +8,6 @@
 
 import sys
 import os.path
-import random
 
 token = ''
 pos = 0
