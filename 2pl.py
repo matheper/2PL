@@ -8,6 +8,7 @@
 
 import sys
 import os.path
+import random
 
 token = ''
 pos = 0
@@ -161,14 +162,35 @@ class DoisPL(object):
             return 0
 
         arquivo = open(nomeArquivo,'r')
+        ind = 0
         for linha in arquivo:
+            ind = ind + 1
             for oper in linha.split(' '):
                 if len(oper) > 3:
                     operacao = [oper[1], oper[0], oper[3]] #quando eh read e write
                 else:
                     operacao = [oper[1], oper[0], ' '] #quando eh commit
                 self.operacoes.append(operacao)
-            break
+
+        if ind > 1:
+            self.montarHistoria(ind)
+
+    def montarHistoria(self, qtde):
+        """
+        Monta uma historia 'aleatoria'
+        """
+        listAux = []
+        tot = len(self.operacoes)
+        while len(listAux) <> tot:
+            for i in range(1, qtde + 1):
+                for oper in self.operacoes:
+                    if int(oper[0]) == i:
+                        listAux.append(oper)
+                        self.operacoes.remove(oper)
+                        break
+
+        for l in listAux:
+            self.operacoes.append(l)
 
     def operacoesEmDelay(self, tran):
         """
@@ -262,7 +284,7 @@ class DoisPL(object):
                 if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita
                     ret = self.tentaObterBloqueio(tran, oper, dado, modo) # tenta obter bloqueio sobre o dado
                     if ret == 0:
-                        print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
+                        print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(oper, tran, dado)
                         print 'Transacao %s abortada!' %(tran)
                         self.abortarOperacao(tran)
                     else:
@@ -282,7 +304,7 @@ class DoisPL(object):
             if oper in ['r', 'w']: #se eh uma operacao de leitura ou escrita
                 ret = self.tentaObterBloqueio(tran, oper, dado, modo) # tenta obter bloqueio sobre o dado
                 if ret == 0:
-                    print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(tran, oper, dado)
+                    print 'Problemas na operacao %s%s(%s): mais de um pedido de lock pela mesma transacao!' %(oper, tran, dado)
                     print 'Transacao %s abortada!' %(tran)
                     self.abortarOperacao(tran)
                 else:
@@ -308,6 +330,26 @@ class DoisPL(object):
 
         return True
 
+    def verificaCausaAbort(self):
+        """
+        Verifica se o abort foi por deadlock ou serializabilidade
+        """
+        list1 = []
+        list2 = []
+        for operDelay in self.delay:
+            for block in self.bloqueios:
+                if operDelay[0] <> block[0] and operDelay[2] == block[2]:
+                    list1.append([operDelay[0], block[0]])
+                    list2.append([operDelay[0], block[0]])
+                    break
+
+        for l1 in list1:
+            for l2 in list2:
+                if l1[0] == l2[1] and l1[1] == l2[0]:
+                    return False
+
+        return True
+
     def pegaOperacoesDelay(self, modo):
         """
         Pega as operacoes que estao em delay
@@ -326,7 +368,10 @@ class DoisPL(object):
         if modo == 1:
             # se for igual eh porque nenhuma transacao em delay conseguiu ser executada, entao tem que abortar
             if totDelay == len(self.delay):
-                print 'Transacao %s abortada por deadlock!' %(self.delay[0][0])
+                if self.verificaCausaAbort():
+                    print 'Transacao %s abortada por conflito de serializabilidade!' %(self.delay[0][0])
+                else:
+                    print 'Transacao %s abortada por deadlock!' %(self.delay[0][0])
                 self.abortarOperacao(self.delay[0][0])
 
     def pegaOperacoes(self):
