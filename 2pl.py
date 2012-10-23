@@ -124,15 +124,6 @@ class Analisador():
         indiceOperacoes = 0
         indiceDelay = 0
         while self.operacoes or self.delay:
-            print "Historia"
-            print self.historia
-            print "Operacoes"
-            print self.operacoes
-            print "Delay"
-            print self.delay
-            print "Bloqueios"
-            print self.bloqueios
-            print "\n\n\n"
             if indiceDelay >= len(self.delay):
                 indiceDelay = 0
             if self.operacoes:
